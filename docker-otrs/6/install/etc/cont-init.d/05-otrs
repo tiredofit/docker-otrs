@@ -1,0 +1,201 @@
+#!/usr/bin/with-contenv bash
+
+### Set Defaults
+ADMIN_EMAIL=${ADMIN_EMAIL:-"admin@example.com"}
+AGENT_LOGO_HEIGHT=${AGENT_LOGO_HEIGHT:-"67"}
+AGENT_LOGO_RIGHT=${AGENT_LOGO_RIGHT:-"38"}
+AGENT_LOGO_TOP=${AGENT_LOGO_TOP:-"4"}
+AGENT_LOGO_WIDTH=${AGENT_LOGO_WIDTH:-"270"}
+CUSTOMER_LOGO_HEIGHT=${CUSTOMER_LOGO_HEIGHT:-"50"}
+CUSTOMER_LOGO_RIGHT=${CUSTOMER_LOGO_RIGHT:-"25"}
+CUSTOMER_LOGO_TOP=${CUSTOMER_LOGO_TOP:-"2"}
+CUSTOMER_LOGO_WIDTH=${CUSTOMER_LOGO_WIDTH:-"135"}
+FETCH_TIME=${FETCH_TIME:-10}
+ORGANIZATION=${ORGANIZATION:-"Example Company"}
+ROOT_PASS=${ROOT_PASS:-"password"}
+SYSTEM_ID=${SYSTEM_ID:-"777"}
+
+### Functions
+
+function set_logo () {
+  interface=$1
+  logo_height=$2
+  logo_right=$3
+  logo_top=$4
+  logo_width=$5
+  logo_url=$6
+
+  sed -i "/$Self->{'SecureMode'} = 1;/a \
+     \$Self->{'${interface}Logo'} =  {\n'StyleHeight' => '${logo_height}px',\
+\n    'StyleRight' => '${logo_right}px',\
+\n    'StyleTop' => '${logo_top}px',\
+\n    'StyleWidth' => '${logo_width}px',\
+\n    'URL' => '$logo_url'\n};" /var/lib/otrs/Kernel/Config.pm
+}
+
+
+### Set Debug Mode
+if [ "$DEBUG_MODE" = "TRUE" ] || [ "$DEBUG_MODE" = "true" ]; then
+    set -x
+fi
+
+### Sanity Test
+if [ ! -n "DB_HOST" ]; then
+    echo '** [otrs] ERROR: No Database Host Entered! '
+    exit 1
+fi
+
+if [ ! -n "DB_NAME" ]; then
+    echo '** [otrs] ERROR: No Database Pass Entered! '
+    exit 1
+fi
+
+if [ ! -n "DB_USER" ]; then
+    echo '** [otrs] ERROR: No Database User Entered! '
+    exit 1
+fi
+
+if [ ! -n "DB_PASS" ]; then
+    echo '** [otrs] ERROR: No Database Pass Entered! '
+    exit 1
+fi
+
+### Make sure that DB is accessible
+while true; do
+  mysqlcmd='mysql -u'$DB_USER' -h'$DB_HOST' -p'$DB_PASS 
+  out="`$mysqlcmd -e "SELECT COUNT(*) FROM information_schema.FILES;" 2>&1`"
+  echo "$out" | grep -E "COUNT|Enter" 2>&1 > /dev/null
+  if [ $? -eq 0 ]; then
+    echo "** [otrs] MySQL Server Available"
+    break
+  fi
+  echo "** [otrs] MySQL Server not available. Waiting for it to initialize.."
+  sleep 2
+done
+
+### Check to see if this is a new install..
+$mysqlcmd -e "use "$DB_NAME"; SELECT * FROM roles;" > /dev/null 2>&1
+  if [ $? -gt 0 ]; then
+
+      echo "** [otrs] Starting a clean OTRS installation ready to be configured !!"
+
+#### Setup Data Persistence
+    if [ ! -f /var/lib/otrs/Kernel/Config.pm ]; then
+        echo "** [otrs] Found empty configuration directory, copying default configuration to it"
+        mkdir -p /var/lib/otrs/Kernel
+        cp -R /assets/otrs-config/* /var/lib/otrs/
+        if [ $? -eq 0 ];
+          then
+            :
+          else
+            echo "** [otrs] ERROR: Can't move OTRS configuration directory to /var/lib/otrs/Kernel" && exit 1
+        fi
+    fi
+
+#### Configure DB
+    sed  -i "s/\($Self->{'DatabaseHost'} *= *\).*/\1'$DB_HOST';/" /var/lib/otrs/Kernel/Config.pm
+    sed  -i "s/\($Self->{'Database'} *= *\).*/\1'$DB_NAME';/" /var/lib/otrs/Kernel/Config.pm
+    sed  -i "s/\($Self->{'Database'} *= *\).*/\1'$DB_USER';/" /var/lib/otrs/Kernel/Config.pm
+    sed  -i "s/\($Self->{'DatabasePw'} *= *\).*/\1'$DB_PASS';/" /var/lib/otrs/Kernel/Config.pm
+
+#### Add default config options
+    sed -i "/$Self->{'SecureMode'} = 1;/a \
+         \$Self->{'FQDN'} = '$HOSTNAME';\
+  \n\    \$Self->{'AdminEmail'} = '$ADMIN_EMAIL';\
+  \n\    \$Self->{'Organization'} = '$ORGANIZATION';\
+  \n\    \$Self->{'CustomerHeadline'} = '$ORGANIZATION';\
+  \n\    \$Self->{'SystemID'} = '$SYSTEM_ID';\
+  \n\    \$Self->{'PostMaster::PreFilterModule::NewTicketReject::Sender'} = 'noreply@${HOSTNAME}';"\
+   /var/lib/otrs/Kernel/Config.pm
+
+#### Populate Database
+        echo "** [otrs] Loading default db schema..."
+        $mysqlcmd $DB_NAME < /var/lib/otrs/scripts/database/otrs-schema.mysql.sql
+        [ $? -gt 0 ] && echo "ERROR: Couldn't load OTRS database schema !!" && exit 1
+        echo "** [otrs] Loading initial db inserts..."
+        $mysqlcmd $DB_NAME < /var/lib/otrs/scripts/database/otrs-initial_insert.mysql.sql
+        [ $? -gt 0 ] && echo "ERROR: Couldn't load OTRS database initial inserts !!" && exit 1
+        $mysqlcmd $DB_NAME < /var/lib/otrs/scripts/database/otrs-schema-post.mysql.sql
+        [ $? -gt 0 ] && echo "ERROR: Couldn't load OTRS database schema post inserts !!" && exit 1
+    else
+      echo "** [otrs] Existing OTRS Installation found..."
+  fi
+
+
+  
+### Set Skins
+  [ ! -z $AGENT_SKIN ] &&  sed -i "/$Self->{'SecureMode'} = 1;/a \$Self->{'Loader::Agent::DefaultSelectedSkin'} =  '$AGENT_SKIN';\n\$Self->{'Loader::Customer::SelectedSkin'} =  '$CUSTOMER_SKIN';" /var/lib/otrs/Kernel/Config.pm
+
+### Set Logos
+  [ ! -z $AGENT_LOGO ] && set_logo "Agent" $AGENT_LOGO_HEIGHT $AGENT_LOGO_RIGHT $AGENT_LOGO_TOP $AGENT_LOGO_WIDTH $AGENT_LOGO
+  [ ! -z CUSTOMER_LOGO ] && set_logo "Customer" $CUSTOMER_LOGO_HEIGHT $CUSTOMER_LOGO_RIGHT $CUSTOMER_LOGO_TOP $CUSTOMER_LOGO_WIDTH $CUSTOMER_LOGO
+  
+### Set Ticket Counter
+    if [ ! -z "${TICKET_COUNTER}" ]; then
+    echo "** [otrs] Setting the start of the ticket counter to: '$TICKET_COUNTER'"
+    echo "$TICKET_COUNTER" > /var/lib/otrs/var/log/TicketCounter.log
+  fi
+  if [ ! -z "$NUMBER_GENERATOR" ]; then
+    echo "Setting ticket number generator to: '$NUMBER_GENERATOR'"
+    sed -i "/$Self->{'SecureMode'} = 1;/a \$Self->{'Ticket::NumberGenerator'} =  'Kernel::System::Ticket::Number::${NUMBER_GENERATOR}';" /var/lib/otrs/Kernel/Config.pm
+  fi
+
+### Set Default Language
+  if [ ! -z $LANGUAGE ]; then
+    echo "** [otrs] Setting default language to: '$LANGUAGE'"
+    sed -i "/$Self->{'SecureMode'} = 1;/a $Self->{'DefaultLanguage'} = '$LANGUAGE';" /var/lib/otrs/Kernel/Config.pm
+ fi
+  export LANG
+
+  
+### Set Permissions
+  echo '** [otrs] Setting Permissions'
+  /var/lib/otrs/bin/otrs.SetPermissions.pl --otrs-user=otrs --web-group=www-data > /dev/null 2>&1
+  mkdir -p /www/logs/otrs
+  chown -R otrs:www-data /www/logs/otrs/
+  
+### Set Postmaster Fetch Time
+    echo "** [otrs] Setting Postmaster fetching every '$FETCH_TIME' minutes"
+    if [ $FETCH_TIME -eq 0 ]; then
+      #Disable email fetching
+      :
+    else
+      echo $FETCH_TIME' * * * * su -s /bin/sh otrs -c /var/lib/otrs/bin/otrs.Postmaster.pl >> /dev/null 2>&1' >> /assets/cron/crontab.txt
+  fi
+
+### Install Addons
+# if [ ! -f /addons/ ]; then
+#  echo "** [otrs] Addons Directory Found.."
+# shopt -s nullglob
+# for itsm in /addons/ITSM*.opm
+# do
+#  echo "** [otrs] Installing ITSM addon - $itsm"
+#    su -s /bin/sh otrs -c "/opt/otrs/bin/otrs.Console.pl Admin::Package::Install '$itsm'"
+#    done
+#    shopt -s nullglob
+#for addon in /addons/*.opm
+# do
+#  echo "** [otrs] Installing addon - $addon"
+#    su -s /bin/sh otrs -c "/opt/otrs/bin/otrs.Console.pl Admin::Package::Install '$addon'"
+#    done
+#  fi
+
+### Rebuild Configuration
+echo '** [otrs] Rebuilding Configuration'
+su -s /bin/sh otrs -c "/var/lib/otrs/bin/otrs.Console.pl Maint::Config::Rebuild" > /dev/null 2>&1
+
+echo '** [otrs] Resetting Cache'
+### Delete Cache
+su -s /bin/sh otrs -c "/var/lib/otrs/bin/otrs.Console.pl Maint::Cache::Delete" > /dev/null 2>&1
+
+### Set default admin user password
+  echo "** [otrs] Setting password for default admin account root@localhost to: $ROOT_PASS"
+  su -s /bin/sh otrs -c  "/var/lib/otrs/bin/otrs.Console.pl Admin::User::SetPassword root@localhost ${ROOT_PASS}" > /dev/null 2>&1
+
+### Start OTRS
+echo '** [otrs] Starting OTRS Processes'
+su -s /bin/sh otrs -c '/var/lib/otrs/bin/otrs.Daemon.pl start' > /dev/null 2>&1
+
+
+mkdir -p /tmp/state/
+touch /tmp/state/05-otrs-init

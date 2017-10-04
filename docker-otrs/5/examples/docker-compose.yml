@@ -1,0 +1,54 @@
+version: '2'
+
+services:
+  otrs-app:
+    image: tiredofit/otrs:5
+    container_name: otrs-app
+    links:
+    - otrs-db
+    volumes:
+    - ./conf:/var/lib/otrs/Kernel
+    - ./logs/:/www/logs
+    environment:
+    - VIRTUAL_HOST=otrs.examplre.com
+    - VIRTUAL_NETWORK=nginx-proxy
+    - VIRTUAL_PORT=80
+    - LETSENCRYPT_HOST=otrs.example.com
+    - LETSENCRYPT_EMAIL=admin@example.com
+
+    - ZABBIX_HOSTNAME=otrs-app
+
+    - DB_HOST=otrs-db
+    - DB_NAME=otrs
+    - DB_USER=otrs
+    - DB_PASS=otrs
+
+    - ROOT_PASS=otrs
+    - ADMIN_EMAL=admin@example.com
+    - ORGANIZTION=OTRS Organization
+    networks:
+      - proxy-tier
+    restart: always
+
+  otrs-db:
+    image: tiredofit/mariadb
+    container_name: otrs-db
+    volumes:
+      - ./conf.d:/etc/mysql/conf.d
+      - /var/local/db/otrs-db:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=otrs
+      - MYSQL_DATABASE=otrs
+      - MYSQL_USER=otrs
+      - MYSQL_PASSWORD=otrs
+
+      - ZABBIX_HOSTNAME=otrs-db
+    networks:
+      - proxy-tier
+    restart: always
+
+networks:
+  proxy-tier:
+    external:
+      name: nginx-proxy
+

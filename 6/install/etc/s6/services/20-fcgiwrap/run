@@ -11,7 +11,7 @@ if [ ! -f /tmp/state/20-fcgwiwrap ]; then
 fi
 
 echo ''
-echo '** [fcgiwrap] Starting fcgiwrap'
+echo '** [otrs] Starting fcgiwrap'
 #exec fcgiwrap -c 3 -s unix:/var/run/fcgiwrap/fcgiwrap.sock
 exec /usr/bin/spawn-fcgi  -s /var/lib/otrs/var/run/socket-1 -P /run/spawn-fcgi/otrs-1.pid -u otrs -g www-data -U otrs -G www-data -M 660 -n -- /usr/bin/fcgiwrap
 

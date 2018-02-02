@@ -5,12 +5,5 @@ do
   sleep 1
 done
 
-### Adjust NGINX Runtime Variables
-UPLOAD_MAX_SIZE=${UPLOAD_MAX_SIZE:-"2G"}
-CGI_TIMEOUT=${CGI_TIMEOUT:-"300"}
-sed -i -e "s/<UPLOAD_MAX_SIZE>/$UPLOAD_MAX_SIZE/g" /etc/nginx/nginx.conf
-sed -i -e "s/<CGI_TIMEOUT>/$CGI_TIMEOUT/g" /etc/nginx/conf.d/default.conf
-      
-
 mkdir -p /tmp/state/
 touch /tmp/state/10-nginx-init

@@ -2,7 +2,7 @@ version: '2'
 
 services:
   otrs-app:
-    image: tiredofit/otrs:5
+    image: registry.selfdesign.org/docker/otrs:5
     container_name: otrs-app
     links:
     - otrs-db
@@ -23,15 +23,16 @@ services:
     - DB_USER=otrs
     - DB_PASS=otrs
 
-    - ROOT_PASS=otrs
-    - ADMIN_EMAL=admin@example.com
-    - ORGANIZTION=OTRS Organization
+    - ROOT_PASSWORD=otrs
+    - ORGANIZATION=Company
+    - ADMIN_EMAIL=admin@example.com
+
     networks:
       - proxy-tier
     restart: always
 
   otrs-db:
-    image: tiredofit/mariadb
+    image: registry.selfdesign.org/docker/mariadb
     container_name: otrs-db
     volumes:
       - ./conf.d:/etc/mysql/conf.d

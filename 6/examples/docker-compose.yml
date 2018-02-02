@@ -32,7 +32,7 @@ services:
     restart: always
 
   otrs-db:
-    image: registry.selfdesign.org/docker/mariadb
+    image: tiredofit/mariadb
     container_name: otrs-db
     volumes:
       - ./conf.d:/etc/mysql/conf.d

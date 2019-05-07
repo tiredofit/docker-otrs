@@ -2,7 +2,7 @@ FROM tiredofit/alpine:edge
 LABEL maintainer="Dave Conroy (dave at tiredofit dot ca)"
 
 ### Set Defaults
-   ENV OTRS_VERSION=6.0.4 \
+   ENV OTRS_VERSION=6.0.18 \
        ZABBIX_HOSTNAME=otrs 
 
 ### Install packages

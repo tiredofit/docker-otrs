@@ -9,4 +9,7 @@
   sed -i -e "s/<UPLOAD_MAX_SIZE>/$UPLOAD_MAX_SIZE/g" /etc/nginx/nginx.conf
   sed -i -e "s/<CGI_TIMEOUT>/$CGI_TIMEOUT/g" /etc/nginx/conf.d/default.conf
 
-
+### Set Permissions
+  echo '** [nginx] Setting Permissions'
+  mkdir -p /www/logs/nginx
+  chown -R nginx:www-data /www/logs/nginx/
